@@ -1,0 +1,314 @@
+<?php
+require_once 'config.php';
+?>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BKK STAYPOINT - แหล่งรวมที่พักกรุงเทพฯ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="index.php" class="nav-brand">
+            <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>คิดไม่ออกวะ</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <?php if (!empty($_SESSION['user_id'])): ?>
+                <span style="color: #64748B; font-size: 0.9rem;">สวัสดี, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
+                <?php if ($_SESSION['user_role'] === 'owner'): ?>
+                    <a href="owner_dashboard.php" class="btn btn-secondary-outline">แดชบอร์ดของฉัน</a>
+                <?php endif; ?>
+                <a href="logout.php" class="btn btn-secondary-outline">ออกจากระบบ</a>
+            <?php else: ?>
+                <a href="register.php" class="btn btn-secondary-outline">สมัครสมาชิก</a>
+                <a href="user_login.php" class="btn btn-secondary-outline">เข้าสู่ระบบ</a>
+            <?php endif; ?>
+        </div>
+    </div>
+</nav>
+
+<header class="hero-section">
+    <div class="hero-content">
+        <h1>ค้นพบที่พักถัดไปของคุณ</h1>
+        <p>รวมรวมจุดพักผ่อน คอนโด โรงแรม และห้องพักใจกลางเมืองกรุงเทพมหานคร</p>
+
+        <div class="filter-bar">
+            <div class="filter-group filter-group--district">
+                <label for="district-select">เลือกเขตพื้นที่</label>
+                <select id="district-select" onchange="applyFilters()">
+                    <option value="">แสดงทั้งหมด</option>
+                </select>
+            </div>
+
+            <div class="filter-group filter-group--price">
+                <label class="price-title">ราคาต่อคืน</label>
+                <div class="range-slider">
+                    <div class="range-track"></div>
+                    <div class="range-track-fill" id="range-track-fill"></div>
+                    <input type="range" id="min-price-slider" min="0" max="10000" step="100" value="0" oninput="onSliderInput()" onchange="applyFilters()">
+                    <input type="range" id="max-price-slider" min="0" max="10000" step="100" value="10000" oninput="onSliderInput()" onchange="applyFilters()">
+                </div>
+                <div class="price-range-values">
+                    <div class="price-labels">
+                        <span id="price-min-label">เริ่มต้น 0 บาท</span>
+                        <span id="price-max-label">สูงสุด 0 บาท</span>
+                    </div>
+                    <div class="price-inputs-row">
+                        <div class="price-input-wrap">
+                            <span class="currency">฿</span>
+                            <input type="number" id="price-min-input" class="price-number-input" value="0" step="100" onchange="onPriceInputChange('min')">
+                        </div>
+                        <div class="price-connector"></div>
+                        <div class="price-input-wrap">
+                            <span class="currency">฿</span>
+                            <input type="number" id="price-max-input" class="price-number-input" value="0" step="100" onchange="onPriceInputChange('max')">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-actions">
+                <button class="btn btn-primary" onclick="filterByCurrentLocation()">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><path d="M2 12h20"></path></svg>
+                    ค้นหาที่พักใกล้ตัวฉัน (20 กม.)
+                </button>
+
+                <button class="btn btn-secondary" onclick="resetFilters()">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                    รีเซ็ตทั้งหมด
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="container">
+    <div class="section-header">
+        <h2>ที่พักแนะนำในกรุงเทพฯ</h2>
+        <div class="divider"></div>
+    </div>
+    
+    <div class="grid" id="accommodation-list"></div>
+</main>
+
+<script>
+    // โหลดเขตมาใส่ dropdown
+    fetch('api.php?action=get_districts')
+        .then(res => res.json())
+        .then(districts => {
+            const select = document.getElementById('district-select');
+            districts.forEach(d => {
+                select.innerHTML += `<option value="${d.id}">${d.name_th}</option>`;
+            });
+        });
+
+    // โหลดราคาต่ำสุด-สูงสุดจริงในระบบ มาตั้งเป็นขอบเขตสไลเดอร์
+    fetch('api.php?action=get_price_range')
+        .then(res => res.json())
+        .then(range => {
+            const minSlider = document.getElementById('min-price-slider');
+            const maxSlider = document.getElementById('max-price-slider');
+            const minInput = document.getElementById('price-min-input');
+            const maxInput = document.getElementById('price-max-input');
+            const priceMin = 0;
+            const priceMax = Math.max(Number(range.max) || 0, 100);
+
+            minSlider.min = priceMin;
+            minSlider.max = priceMax;
+            minSlider.value = priceMin;
+            maxSlider.min = priceMin;
+            maxSlider.max = priceMax;
+            maxSlider.value = priceMax;
+            // ให้ช่องกรอกตัวเลขมีขอบเขตเดียวกับสไลเดอร์
+            minInput.min = priceMin;
+            minInput.max = priceMax;
+            maxInput.min = priceMin;
+            maxInput.max = priceMax;
+            updateSliderUI();
+        });
+
+    // อัปเดตแถบสีและตัวเลขบนสไลเดอร์ ให้ตรงกับตำแหน่งที่ลากอยู่ (เรียกทุกครั้งที่ลาก)
+    function onSliderInput() {
+        const minSlider = document.getElementById('min-price-slider');
+        const maxSlider = document.getElementById('max-price-slider');
+
+        // กันไม่ให้หัวไหนลากข้ามอีกหัวไป
+        if (parseInt(minSlider.value) > parseInt(maxSlider.value)) {
+            if (document.activeElement === minSlider) {
+                minSlider.value = maxSlider.value;
+            } else {
+                maxSlider.value = minSlider.value;
+            }
+        }
+        updateSliderUI();
+    }
+
+    function updateSliderUI() {
+        const minSlider = document.getElementById('min-price-slider');
+        const maxSlider = document.getElementById('max-price-slider');
+        const rangeMin = parseInt(minSlider.min);
+        const rangeMax = parseInt(minSlider.max);
+        const minVal = parseInt(minSlider.value);
+        const maxVal = parseInt(maxSlider.value);
+
+        const minPercent = rangeMax > rangeMin ? ((minVal - rangeMin) / (rangeMax - rangeMin)) * 100 : 0;
+        const maxPercent = rangeMax > rangeMin ? ((maxVal - rangeMin) / (rangeMax - rangeMin)) * 100 : 100;
+
+        const fill = document.getElementById('range-track-fill');
+        fill.style.left = minPercent + '%';
+        fill.style.width = (maxPercent - minPercent) + '%';
+
+        document.getElementById('price-min-input').value = minVal;
+        document.getElementById('price-max-input').value = maxVal;
+        document.getElementById('price-min-label').textContent = `เริ่มต้น ${minVal.toLocaleString('th-TH')} บาท`;
+        document.getElementById('price-max-label').textContent = `สูงสุด ${maxVal.toLocaleString('th-TH')} บาท`;
+    }
+
+    // เวลาพิมพ์ตัวเลขเองในช่องราคา ให้ลากสไลเดอร์ตามไปด้วย
+    function onPriceInputChange(which) {
+        const minSlider = document.getElementById('min-price-slider');
+        const maxSlider = document.getElementById('max-price-slider');
+        const minInput = document.getElementById('price-min-input');
+        const maxInput = document.getElementById('price-max-input');
+        const rangeMin = parseInt(minSlider.min);
+        const rangeMax = parseInt(minSlider.max);
+
+        let minVal = parseInt(minInput.value);
+        let maxVal = parseInt(maxInput.value);
+        if (isNaN(minVal)) minVal = rangeMin;
+        if (isNaN(maxVal)) maxVal = rangeMax;
+
+        // กันไม่ให้เลขที่พิมพ์หลุดขอบเขตราคาจริงในระบบ
+        minVal = Math.min(Math.max(minVal, rangeMin), rangeMax);
+        maxVal = Math.min(Math.max(maxVal, rangeMin), rangeMax);
+
+        // กันไม่ให้ min มากกว่า max
+        if (which === 'min' && minVal > maxVal) minVal = maxVal;
+        if (which === 'max' && maxVal < minVal) maxVal = minVal;
+
+        minSlider.value = minVal;
+        maxSlider.value = maxVal;
+
+        updateSliderUI();
+        applyFilters();
+    }
+    
+
+    // ฟังก์ชันโหลดที่พักมาแสดงในหน้า
+    function loadAccommodations(url) {
+        const listDiv = document.getElementById('accommodation-list');
+        listDiv.innerHTML = '<div class="loading-state"><p>กำลังค้นหาและดึงข้อมูลที่พักระดับพรีเมียม...</p></div>';
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                listDiv.innerHTML = '';
+
+                if (data.error) {
+                    listDiv.innerHTML = `
+                        <div class="empty-state">
+                            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            <p>เกิดข้อผิดพลาดในการดึงข้อมูล: ${data.error}</p>
+                        </div>`;
+                    return;
+                }
+
+                if(data.length === 0) {
+                    listDiv.innerHTML = `
+                        <div class="empty-state">
+                            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            <p>ไม่พบข้อมูลที่พักในเงื่อนไขการค้นหานี้</p>
+                        </div>`;
+                    return;
+                }
+                data.forEach(item => {
+                    const imgHtml = item.cover_image
+                        ? `<img class="card-image" src="uploads/${item.cover_image}" alt="${item.name}">`
+                        : `<div class="card-image-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></div>`;
+                    listDiv.innerHTML += `
+                        <div class="card">
+                            ${imgHtml}
+                            <div class="card-body">
+                                <span class="badge">เขต${item.district_name || 'ไม่ระบุ'}</span>
+                                <h3>${item.name}</h3>
+                                <p class="address">${item.address || 'ไม่มีข้อมูลที่อยู่ระบุไว้ในระบบ'}</p>
+                            </div>
+                            <div class="card-footer">
+                                <a class="details-link" href="details.php?id=${item.id}">ดูรายละเอียด</a>
+                                <div class="price">฿${parseInt(item.price).toLocaleString()} <span>/ คืน</span></div>
+                                ${item.distance ? `<div class="distance">📍 ใกล้ฉัน: ${parseFloat(item.distance).toFixed(2)} กม.</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            })
+            .catch(err => {
+                listDiv.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <p>เชื่อมต่อ server ไม่ได้ ลองรีเฟรชหน้าใหม่อีกครั้ง</p>
+                    </div>`;
+            });
+    }
+
+    // เก็บพิกัดปัจจุบันไว้ ถ้า user เคยกด "ค้นหาใกล้ฉัน" แล้วจะได้รวมกับ filter อื่นได้ด้วย
+    let currentLat = null;
+    let currentLng = null;
+
+    // รวม filter ทุกตัว (เขต, ช่วงราคา, ตำแหน่ง) เป็น query เดียวแล้วยิงพร้อมกัน
+    function applyFilters() {
+        const districtId = document.getElementById('district-select').value;
+        const minPrice = document.getElementById('min-price-slider').value;
+        const maxPrice = document.getElementById('max-price-slider').value;
+
+        const params = new URLSearchParams();
+        if (districtId) params.set('district_id', districtId);
+        if (minPrice) params.set('min_price', minPrice);
+        if (maxPrice) params.set('max_price', maxPrice);
+        if (currentLat !== null && currentLng !== null) {
+            params.set('lat', currentLat);
+            params.set('lng', currentLng);
+        }
+
+        loadAccommodations(`api.php?${params.toString()}`);
+    }
+
+    function resetFilters() {
+        document.getElementById('district-select').value = '';
+        const minSlider = document.getElementById('min-price-slider');
+        const maxSlider = document.getElementById('max-price-slider');
+        minSlider.value = minSlider.min;
+        maxSlider.value = maxSlider.max;
+        updateSliderUI();
+        currentLat = null;
+        currentLng = null;
+        loadAccommodations('api.php');
+    }
+
+    function filterByCurrentLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                currentLat = position.coords.latitude;
+                currentLng = position.coords.longitude;
+                applyFilters();
+            }, () => {
+                alert('ไม่สามารถเข้าถึงตำแหน่งปัจจุบันได้ โปรดอนุญาตสิทธิ์ Location ในเบราว์เซอร์ของคุณ');
+            });
+        } else {
+            alert('เบราว์เซอร์ของคุณไม่รองรับระบบตรวจสอบพิกัดที่ตั้ง');
+        }
+    }
+
+    window.onload = () => loadAccommodations('api.php');
+</script>
+
+</body>
+</html>
