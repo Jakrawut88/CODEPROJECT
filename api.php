@@ -1,9 +1,19 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-require_once 'config.php';
+require_once __DIR__ . '/config.php';
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
+
+// ส่งสถานะบัญชีให้หน้าแรกที่เป็น HTML ล้วนใช้แสดงเมนูให้ถูกต้อง
+if ($action === 'get_session') {
+    echo json_encode([
+        'logged_in' => !empty($_SESSION['user_id']),
+        'user_name' => $_SESSION['user_name'] ?? '',
+        'user_role' => $_SESSION['user_role'] ?? '',
+    ]);
+    exit;
+}
 
 // เอาไว้ยิงมาทำ dropdown ฝั่งหน้าบ้าน
 if ($action == 'get_districts') {
