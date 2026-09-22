@@ -13,13 +13,13 @@
 
 <nav class="navbar">
     <div class="nav-container">
-        <a href="index.php" class="nav-brand">
+        <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-            <span>คิดไม่ออกวะ</span>
+            <span>รวมที่พักทั่วกรุงเทพ</span>
         </a>
         <div id="user-navigation" style="display: flex; align-items: center; gap: 12px;">
-            <a href="register.php" class="btn btn-secondary-outline">สมัครสมาชิก</a>
-            <a href="user_login.php" class="btn btn-secondary-outline">เข้าสู่ระบบ</a>
+            <a href="http://localhost/CODEPROJECT/register.php" class="btn btn-secondary-outline">สมัครสมาชิก</a>
+            <a href="http://localhost/CODEPROJECT/user_login.php" class="btn btn-secondary-outline">เข้าสู่ระบบ</a>
         </div>
     </div>
 </nav>
@@ -111,14 +111,14 @@
 
             if (session.user_role === 'owner') {
                 const dashboard = document.createElement('a');
-                dashboard.href = 'owner_dashboard.php';
+                dashboard.href = 'http://localhost/CODEPROJECT/owner_dashboard.php';
                 dashboard.className = 'btn btn-secondary-outline';
                 dashboard.textContent = 'แดชบอร์ดของฉัน';
                 nav.append(dashboard);
             }
 
             const logout = document.createElement('a');
-            logout.href = 'logout.php';
+            logout.href = 'http://localhost/CODEPROJECT/logout.php';
             logout.className = 'btn btn-secondary-outline';
             logout.textContent = 'ออกจากระบบ';
             nav.append(logout);
@@ -267,7 +267,7 @@
                                 <p class="address">${item.address || 'ไม่มีข้อมูลที่อยู่ระบุไว้ในระบบ'}</p>
                             </div>
                             <div class="card-footer">
-                                <a class="details-link" href="details.php?id=${item.id}">ดูรายละเอียด</a>
+                                <a class="details-link" href="http://localhost/CODEPROJECT/details.php?id=${item.id}">ดูรายละเอียด</a>
                                 <div class="price">฿${parseInt(item.price).toLocaleString()} <span>/ คืน</span></div>
                                 ${item.distance ? `<div class="distance">📍 ใกล้ฉัน: ${parseFloat(item.distance).toFixed(2)} กม.</div>` : ''}
                             </div>

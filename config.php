@@ -5,6 +5,13 @@ $isSessionApiRequest = basename($_SERVER['SCRIPT_NAME'] ?? '') === 'api.php'
     && ($_GET['action'] ?? '') === 'get_session';
 if ((basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'api.php' || $isSessionApiRequest)
     && session_status() === PHP_SESSION_NONE) {
+    // Store sessions inside the project so PHP works consistently with Five
+    // Server as well as Apache/XAMPP.
+    $sessionPath = __DIR__ . DIRECTORY_SEPARATOR . 'sessions';
+    if (!is_dir($sessionPath)) {
+        mkdir($sessionPath, 0700, true);
+    }
+    session_save_path($sessionPath);
     session_start();
 }
 

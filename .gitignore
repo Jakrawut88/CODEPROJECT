@@ -1,0 +1,3 @@
+# Runtime PHP session files
+/sessions/*
+!/sessions/.gitkeep

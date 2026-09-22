@@ -123,17 +123,26 @@ for ($i = 0; $i < $count; $i++) {
         continue;
     }
 
-    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$real_type];
-    $filename = uniqid('img_', true) . '.jpg'; // บันทึกเป็น jpg เสมอ หลัง resize
-    $dest = $upload_dir . $filename;
+        $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$real_type];
+    $canResize = function_exists('imagecreatetruecolor') && (
+        ($real_type === 'image/jpeg' && function_exists('imagecreatefromjpeg')) ||
+        ($real_type === 'image/png' && function_exists('imagecreatefrompng')) ||
+        ($real_type === 'image/webp' && function_exists('imagecreatefromwebp'))
+    );
 
-    // resize + compress ด้วย GD ก่อนบันทึก ลดขนาดจาก 5MB+ เหลือแค่ 200-400KB
-    if (!resizeAndSave($tmp, $real_type, $dest)) {
+    // Use GD when available; otherwise preserve the validated original file.
+    // This prevents a missing GD extension from crashing the upload request.
+    $filename = uniqid('img_', true) . ($canResize ? '.jpg' : '.' . $ext);
+    $dest = $upload_dir . $filename;
+    $savedToDisk = $canResize
+        ? resizeAndSave($tmp, $real_type, $dest)
+        : move_uploaded_file($tmp, $dest);
+
+    if (!$savedToDisk) {
         $errors[] = "$name: บันทึกไฟล์ไม่สำเร็จ";
         continue;
     }
-
-    $stmt = $pdo->prepare("INSERT INTO accommodation_images (accommodation_id, filename, sort_order) VALUES (:aid, :fn, :so)");
+$stmt = $pdo->prepare("INSERT INTO accommodation_images (accommodation_id, filename, sort_order) VALUES (:aid, :fn, :so)");
     $stmt->execute(['aid' => $accommodation_id, 'fn' => $filename, 'so' => $next_order]);
     $next_order++;
 

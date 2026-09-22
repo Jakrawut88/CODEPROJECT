@@ -88,7 +88,13 @@ $pending = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as o
                          LEFT JOIN districts d ON a.district_id = d.id
                          LEFT JOIN users u ON a.owner_id = u.id
                          WHERE a.status = 'pending' ORDER BY a.created_at ASC")->fetchAll();
-?>
+
+// Admin can manage images for listings after they have been approved.
+$approved = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as owner_name
+                          FROM accommodations a
+                          LEFT JOIN districts d ON a.district_id = d.id
+                          LEFT JOIN users u ON a.owner_id = u.id
+                          WHERE a.status = 'approved' ORDER BY a.id DESC")->fetchAll();?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -104,13 +110,13 @@ $pending = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as o
 
 <nav class="navbar">
     <div class="nav-container">
-        <a href="index.php" class="nav-brand">
+        <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             <span>BKK STAYPOINT</span>
         </a>
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: #64748B; font-size: 0.9rem;">สวัสดี, <?php echo htmlspecialchars($_SESSION['admin_username']); ?></span>
-            <a href="index.php" class="btn btn-secondary-outline">กลับไปหน้าค้นหา</a>
+            <a href="index.html" class="btn btn-secondary-outline">กลับไปหน้าค้นหา</a>
             <a href="logout.php" class="btn btn-secondary-outline">ออกจากระบบ</a>
         </div>
     </div>
@@ -283,22 +289,87 @@ $pending = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as o
     </div>
     <?php endif; ?>
 
+    <div class="section-header">
+        <h2>จัดการรูปภาพที่พักที่อนุมัติแล้ว (<?php echo count($approved); ?>)</h2>
+        <p style="color: #64748B; margin-top: 4px;">เพิ่มหรือลบรูปของที่พักได้ภายหลัง</p>
+        <div class="divider"></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px;">
+        <?php foreach ($approved as $item):
+            $imgs_stmt = $pdo->prepare("SELECT * FROM accommodation_images WHERE accommodation_id = :id ORDER BY sort_order ASC");
+            $imgs_stmt->execute(['id' => $item['id']]);
+            $imgs = $imgs_stmt->fetchAll();
+        ?>
+            <div class="card" style="padding: 20px 24px;">
+                <h4 style="font-weight: 700; color: var(--color-neutral);"><?php echo htmlspecialchars($item['name']); ?></h4>
+                <p style="color: #64748B; font-size: 0.9rem; margin: 4px 0 14px;">เขต<?php echo htmlspecialchars($item['district_name'] ?? 'ไม่ระบุ'); ?></p>
+                <div class="image-manager" id="imgmgr-<?php echo $item['id']; ?>">
+                    <h4>รูปภาพ (<?php echo count($imgs); ?> รูป)</h4>
+                    <div class="image-grid" id="thumbs-<?php echo $item['id']; ?>">
+                        <?php foreach ($imgs as $img): ?>
+                            <div class="image-thumb" id="thumb-<?php echo $img['id']; ?>">
+                                <img src="uploads/<?php echo htmlspecialchars($img['filename']); ?>" alt="">
+                                <button class="image-thumb-delete" onclick="deleteImage(<?php echo $img['id']; ?>)" title="ลบรูปนี้">×</button>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <label class="upload-area" for="upload-<?php echo $item['id']; ?>">
+                        <input type="file" id="upload-<?php echo $item['id']; ?>" multiple accept="image/jpeg,image/png,image/webp" onchange="uploadImages(this, <?php echo $item['id']; ?>)">
+                        📷 คลิกหรือลากรูปมาวางที่นี่ (JPG, PNG, WebP, ไม่เกิน 5MB/รูป)
+                    </label>
+                    <div id="upload-status-<?php echo $item['id']; ?>" style="margin-top:8px; font-size:0.85rem; color:#64748B;"></div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
 </main>
 
 <script>
+    // Compress large camera images in the browser before upload. This keeps the
+    // original upload flow, but avoids sending multi-megabyte files over the network.
+    async function prepareImageForUpload(file) {
+        if (!file.type.startsWith('image/') || !window.createImageBitmap) return file;
+        try {
+            const bitmap = await createImageBitmap(file);
+            const maxDimension = 1200;
+            const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+            if (scale === 1 && file.size <= 700 * 1024) {
+                bitmap.close();
+                return file;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close();
+
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+            if (!blob) return file;
+            const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+            return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+        } catch (_) {
+            return file; // Fall back to the original file when the browser cannot process it.
+        }
+    }
     async function uploadImages(input, accommodationId) {
         const status = document.getElementById(`upload-status-${accommodationId}`);
         const thumbs = document.getElementById(`thumbs-${accommodationId}`);
+        const files = await Promise.all([...input.files].map(prepareImageForUpload));
         status.textContent = 'กำลังอัปโหลด...';
 
         const form = new FormData();
         form.append('accommodation_id', accommodationId);
-        for (const file of input.files) form.append('images[]', file);
+        for (const file of files) form.append('images[]', file);
 
-        const res = await fetch('upload_image.php', { method: 'POST', body: form });
-        const data = await res.json();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000);
+        try {
+            const res = await fetch('upload_image.php', { method: 'POST', body: form, signal: controller.signal });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            const data = await res.json();
 
-        data.saved.forEach(img => {
+            data.saved.forEach(img => {
             thumbs.insertAdjacentHTML('beforeend', `
                 <div class="image-thumb" id="thumb-${img.id}">
                     <img src="uploads/${img.filename}" alt="">
@@ -306,10 +377,17 @@ $pending = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as o
                 </div>`);
         });
 
-        status.textContent = data.saved.length
+            status.textContent = data.saved.length
             ? `อัปโหลดสำเร็จ ${data.saved.length} รูป` + (data.errors.length ? ` / ล้มเหลว: ${data.errors.join(', ')}` : '')
             : `ล้มเหลว: ${data.errors.join(', ')}`;
-        input.value = '';
+            input.value = '';
+        } catch (error) {
+            status.textContent = error.name === 'AbortError'
+                ? 'อัปโหลดนานเกิน 45 วินาที กรุณาลองใหม่ด้วยรูปขนาดเล็กลง'
+                : 'อัปโหลดไม่สำเร็จ: ' + error.message;
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
     async function deleteImage(imageId) {
@@ -317,7 +395,7 @@ $pending = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as o
         const form = new FormData();
         form.append('image_id', imageId);
         const res = await fetch('delete_image.php', { method: 'POST', body: form });
-        const data = await res.json();
+            const data = await res.json();
         if (data.success) {
             document.getElementById(`thumb-${imageId}`)?.remove();
         } else {

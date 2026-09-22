@@ -61,13 +61,13 @@ $my_listings = $stmt->fetchAll();
 
 <nav class="navbar">
     <div class="nav-container">
-        <a href="index.php" class="nav-brand">
+        <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             <span>BKK STAYPOINT</span>
         </a>
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: #64748B; font-size: 0.9rem;">เจ้าของที่พัก: <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-            <a href="index.php" class="btn btn-secondary-outline">กลับไปหน้าค้นหา</a>
+            <a href="index.html" class="btn btn-secondary-outline">กลับไปหน้าค้นหา</a>
             <a href="logout.php" class="btn btn-secondary-outline">ออกจากระบบ</a>
         </div>
     </div>
@@ -203,19 +203,51 @@ $my_listings = $stmt->fetchAll();
 </main>
 
 <script>
+    // Compress large camera images in the browser before upload. This keeps the
+    // original upload flow, but avoids sending multi-megabyte files over the network.
+    async function prepareImageForUpload(file) {
+        if (!file.type.startsWith('image/') || !window.createImageBitmap) return file;
+        try {
+            const bitmap = await createImageBitmap(file);
+            const maxDimension = 1200;
+            const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+            if (scale === 1 && file.size <= 700 * 1024) {
+                bitmap.close();
+                return file;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close();
+
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+            if (!blob) return file;
+            const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+            return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+        } catch (_) {
+            return file; // Fall back to the original file when the browser cannot process it.
+        }
+    }
     async function uploadImages(input, accommodationId) {
         const status = document.getElementById(`upload-status-${accommodationId}`);
         const thumbs = document.getElementById(`thumbs-${accommodationId}`);
+        const files = await Promise.all([...input.files].map(prepareImageForUpload));
         status.textContent = 'กำลังอัปโหลด...';
 
         const form = new FormData();
         form.append('accommodation_id', accommodationId);
-        for (const file of input.files) form.append('images[]', file);
+        for (const file of files) form.append('images[]', file);
 
-        const res = await fetch('upload_image.php', { method: 'POST', body: form });
-        const data = await res.json();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000);
+        try {
+            const res = await fetch('upload_image.php', { method: 'POST', body: form, signal: controller.signal });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            const data = await res.json();
 
-        data.saved.forEach(img => {
+            data.saved.forEach(img => {
             thumbs.insertAdjacentHTML('beforeend', `
                 <div class="image-thumb" id="thumb-${img.id}">
                     <img src="uploads/${img.filename}" alt="">
@@ -223,10 +255,17 @@ $my_listings = $stmt->fetchAll();
                 </div>`);
         });
 
-        status.textContent = data.saved.length
+            status.textContent = data.saved.length
             ? `อัปโหลดสำเร็จ ${data.saved.length} รูป` + (data.errors.length ? ` / ล้มเหลว: ${data.errors.join(', ')}` : '')
             : `ล้มเหลว: ${data.errors.join(', ')}`;
-        input.value = '';
+            input.value = '';
+        } catch (error) {
+            status.textContent = error.name === 'AbortError'
+                ? 'อัปโหลดนานเกิน 45 วินาที กรุณาลองใหม่ด้วยรูปขนาดเล็กลง'
+                : 'อัปโหลดไม่สำเร็จ: ' + error.message;
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
     async function deleteImage(imageId, accommodationId) {
@@ -234,7 +273,7 @@ $my_listings = $stmt->fetchAll();
         const form = new FormData();
         form.append('image_id', imageId);
         const res = await fetch('delete_image.php', { method: 'POST', body: form });
-        const data = await res.json();
+            const data = await res.json();
         if (data.success) {
             document.getElementById(`thumb-${imageId}`)?.remove();
         } else {

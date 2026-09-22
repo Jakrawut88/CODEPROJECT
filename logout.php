@@ -6,5 +6,5 @@ $was_admin = !empty($_SESSION['admin_logged_in']);
 $_SESSION = [];
 session_destroy();
 
-header('Location: ' . ($was_admin ? 'login.php' : 'index.php'));
+header('Location: ' . ($was_admin ? 'login.php' : 'index.html'));
 exit;
