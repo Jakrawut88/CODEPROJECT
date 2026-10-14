@@ -1,6 +1,3 @@
-<?php
-require_once 'config.php';
-?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -16,21 +13,13 @@ require_once 'config.php';
 
 <nav class="navbar">
     <div class="nav-container">
-        <a href="index.php" class="nav-brand">
+        <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             <span>คิดไม่ออกวะ</span>
         </a>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <?php if (!empty($_SESSION['user_id'])): ?>
-                <span style="color: #64748B; font-size: 0.9rem;">สวัสดี, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-                <?php if ($_SESSION['user_role'] === 'owner'): ?>
-                    <a href="owner_dashboard.php" class="btn btn-secondary-outline">แดชบอร์ดของฉัน</a>
-                <?php endif; ?>
-                <a href="logout.php" class="btn btn-secondary-outline">ออกจากระบบ</a>
-            <?php else: ?>
-                <a href="register.php" class="btn btn-secondary-outline">สมัครสมาชิก</a>
-                <a href="user_login.php" class="btn btn-secondary-outline">เข้าสู่ระบบ</a>
-            <?php endif; ?>
+        <div id="user-navigation" style="display: flex; align-items: center; gap: 12px;">
+            <a href="http://localhost/CODEPROJECT/register.php" class="btn btn-secondary-outline">สมัครสมาชิก</a>
+            <a href="http://localhost/CODEPROJECT/user_login.php" class="btn btn-secondary-outline">เข้าสู่ระบบ</a>
         </div>
     </div>
 </nav>
@@ -100,8 +89,44 @@ require_once 'config.php';
 </main>
 
 <script>
+    // Five Server serves only static files. When it is used (normally on port
+    // 5500), requests must go to the PHP API hosted by Apache/XAMPP instead.
+    const apiUrl = location.port && !['80', '443'].includes(location.port)
+        ? 'http://localhost/CODEPROJECT/api.php'
+        : 'api.php';
+
+    // หน้าแรกเป็น HTML ล้วน จึงขอข้อมูลการล็อกอินจาก API แทนการฝัง PHP ไว้ในหน้าเว็บ
+    fetch(`${apiUrl}?action=get_session`)
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(session => {
+            if (!session.logged_in) return;
+
+            const nav = document.getElementById('user-navigation');
+            nav.replaceChildren();
+
+            const greeting = document.createElement('span');
+            greeting.style.cssText = 'color: #64748B; font-size: 0.9rem;';
+            greeting.textContent = `สวัสดี, ${session.user_name}`;
+            nav.append(greeting);
+
+            if (session.user_role === 'owner') {
+                const dashboard = document.createElement('a');
+                dashboard.href = 'http://localhost/CODEPROJECT/owner_dashboard.php';
+                dashboard.className = 'btn btn-secondary-outline';
+                dashboard.textContent = 'แดชบอร์ดของฉัน';
+                nav.append(dashboard);
+            }
+
+            const logout = document.createElement('a');
+            logout.href = 'http://localhost/CODEPROJECT/logout.php';
+            logout.className = 'btn btn-secondary-outline';
+            logout.textContent = 'ออกจากระบบ';
+            nav.append(logout);
+        })
+        .catch(() => {});
+
     // โหลดเขตมาใส่ dropdown
-    fetch('api.php?action=get_districts')
+    fetch(`${apiUrl}?action=get_districts`)
         .then(res => res.json())
         .then(districts => {
             const select = document.getElementById('district-select');
@@ -111,7 +136,7 @@ require_once 'config.php';
         });
 
     // โหลดราคาต่ำสุด-สูงสุดจริงในระบบ มาตั้งเป็นขอบเขตสไลเดอร์
-    fetch('api.php?action=get_price_range')
+    fetch(`${apiUrl}?action=get_price_range`)
         .then(res => res.json())
         .then(range => {
             const minSlider = document.getElementById('min-price-slider');
@@ -242,7 +267,7 @@ require_once 'config.php';
                                 <p class="address">${item.address || 'ไม่มีข้อมูลที่อยู่ระบุไว้ในระบบ'}</p>
                             </div>
                             <div class="card-footer">
-                                <a class="details-link" href="details.php?id=${item.id}">ดูรายละเอียด</a>
+                                <a class="details-link" href="http://localhost/CODEPROJECT/details.php?id=${item.id}">ดูรายละเอียด</a>
                                 <div class="price">฿${parseInt(item.price).toLocaleString()} <span>/ คืน</span></div>
                                 ${item.distance ? `<div class="distance">📍 ใกล้ฉัน: ${parseFloat(item.distance).toFixed(2)} กม.</div>` : ''}
                             </div>
@@ -278,7 +303,7 @@ require_once 'config.php';
             params.set('lng', currentLng);
         }
 
-        loadAccommodations(`api.php?${params.toString()}`);
+        loadAccommodations(`${apiUrl}?${params.toString()}`);
     }
 
     function resetFilters() {
@@ -290,7 +315,7 @@ require_once 'config.php';
         updateSliderUI();
         currentLat = null;
         currentLng = null;
-        loadAccommodations('api.php');
+        loadAccommodations(apiUrl);
     }
 
     function filterByCurrentLocation() {
@@ -307,7 +332,7 @@ require_once 'config.php';
         }
     }
 
-    window.onload = () => loadAccommodations('api.php');
+    window.onload = () => loadAccommodations(apiUrl);
 </script>
 
 </body>

@@ -7,7 +7,7 @@ if (!empty($_SESSION['admin_logged_in'])) {
 }
 
 if (!empty($_SESSION['user_id'])) {
-    header('Location: ' . ($_SESSION['user_role'] === 'owner' ? 'owner_dashboard.php' : 'index.php'));
+    header('Location: ' . ($_SESSION['user_role'] === 'owner' ? 'owner_dashboard.php' : 'index.html'));
     exit;
 }
 
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['user_name'] = $user['full_name'];
         $_SESSION['user_role'] = $user['role'];
 
-        header('Location: ' . ($user['role'] === 'owner' ? 'owner_dashboard.php' : 'index.php'));
+        header('Location: ' . ($user['role'] === 'owner' ? 'owner_dashboard.php' : 'index.html'));
         exit;
     } else {
         $error = "<div class='alert alert-error'>username/อีเมล หรือรหัสผ่านไม่ถูกต้อง</div>";
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <nav class="navbar">
     <div class="nav-container">
-        <a href="index.php" class="nav-brand">
+        <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             <span>BKK STAYPOINT</span>
         </a>
