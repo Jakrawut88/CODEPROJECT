@@ -15,11 +15,7 @@
     <div class="nav-container">
         <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-<<<<<<< HEAD
-            <span>แหล่งรวมที่พักกรุงเทพฯ</span>
-=======
             <span>รวมที่พักทั่วกรุงเทพ</span>
->>>>>>> 3d2f08647b421a0e11af9a2bd31ebcec8f4c1ee8
         </a>
         <div id="user-navigation" style="display: flex; align-items: center; gap: 12px;">
             <a href="http://localhost/CODEPROJECT/register.php" class="btn btn-secondary-outline">สมัครสมาชิก</a>
@@ -71,11 +67,7 @@
             <div class="filter-actions">
                 <button class="btn btn-primary" onclick="filterByCurrentLocation()">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><path d="M2 12h20"></path></svg>
-<<<<<<< HEAD
                     ค้นหาที่พักใกล้ตัวฉัน (10 กม.)
-=======
-                    ค้นหาที่พักใกล้ตัวฉัน (20 กม.)
->>>>>>> 3d2f08647b421a0e11af9a2bd31ebcec8f4c1ee8
                 </button>
 
                 <button class="btn btn-secondary" onclick="resetFilters()">
@@ -104,7 +96,7 @@
         : 'api.php';
 
     // หน้าแรกเป็น HTML ล้วน จึงขอข้อมูลการล็อกอินจาก API แทนการฝัง PHP ไว้ในหน้าเว็บ
-    fetch(`${apiUrl}?action=get_session`)
+    fetch(`${apiUrl}?action=get_session`, { credentials: 'include' })
         .then(res => res.ok ? res.json() : Promise.reject())
         .then(session => {
             if (!session.logged_in) return;
@@ -114,7 +106,8 @@
 
             const greeting = document.createElement('span');
             greeting.style.cssText = 'color: #64748B; font-size: 0.9rem;';
-            greeting.textContent = `สวัสดี, ${session.user_name}`;
+            const roleLabel = session.user_role === 'owner' ? 'เจ้าของที่พัก' : 'ผู้ใช้';
+            greeting.textContent = `สวัสดี, ${session.user_name} (${roleLabel})`;
             nav.append(greeting);
 
             if (session.user_role === 'owner') {

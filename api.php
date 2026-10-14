@@ -1,6 +1,17 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = [
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+];
+if (in_array($origin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Credentials: true');
+    header('Vary: Origin');
+} else {
+    header('Access-Control-Allow-Origin: *');
+}
 require_once __DIR__ . '/config.php';
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -60,7 +71,7 @@ try {
     $where_sql = implode(' AND ', $where);
 
     if ($user_lat != '' && $user_lng != '') {
-        // haversine formula หาระยะทางจากพิกัด user, กรองเอาแค่ในรัศมี 20 กม.
+        // haversine formula หาระยะทางจากพิกัด user, กรองเอาแค่ในรัศมี 10 กม.
         $params['lat1'] = $user_lat;
         $params['lng1'] = $user_lng;
         $params['lat2'] = $user_lat;
@@ -71,7 +82,7 @@ try {
                 FROM accommodations a
                 LEFT JOIN districts d ON a.district_id = d.id
                 WHERE $where_sql
-                HAVING distance <= 20 
+                HAVING distance <= 10
                 ORDER BY distance ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);

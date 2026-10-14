@@ -9,6 +9,8 @@ if (empty($_SESSION['admin_logged_in'])) {
 
 $message_accommodation = '';
 $message_district = '';
+$edit_notice = $_SESSION['admin_edit_notice'] ?? '';
+unset($_SESSION['admin_edit_notice']);
 
 // เพิ่มเขตใหม่เข้าระบบ
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'add_district') {
@@ -64,6 +66,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_accommodation') {
+    $accommodation_id = filter_var($_POST['accommodation_id'] ?? '', FILTER_VALIDATE_INT);
+    $name = trim($_POST['name'] ?? '');
+    $district_id = filter_var($_POST['district_id'] ?? '', FILTER_VALIDATE_INT);
+    $address = trim($_POST['address'] ?? '');
+    $price = filter_var($_POST['price'] ?? '', FILTER_VALIDATE_INT);
+    $phone = trim($_POST['phone'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $amenities = trim($_POST['amenities'] ?? '');
+    $map_url = trim($_POST['map_url'] ?? '');
+    $lat = trim($_POST['lat'] ?? '');
+    $lng = trim($_POST['lng'] ?? '');
+    $status = $_POST['status'] ?? '';
+    $latitude = filter_var($lat, FILTER_VALIDATE_FLOAT);
+    $longitude = filter_var($lng, FILTER_VALIDATE_FLOAT);
+
+    $valid = $accommodation_id !== false
+        && $name !== ''
+        && $district_id !== false
+        && $price !== false
+        && $price >= 0
+        && $phone !== ''
+        && $latitude !== false
+        && $latitude >= -90
+        && $latitude <= 90
+        && $longitude !== false
+        && $longitude >= -180
+        && $longitude <= 180
+        && in_array($status, ['pending', 'approved'], true)
+        && ($map_url === '' || filter_var($map_url, FILTER_VALIDATE_URL));
+
+    if (!$valid) {
+        $edit_notice = "<div class='alert alert-error'>กรุณาตรวจสอบข้อมูลที่จำเป็น ราคา URL แผนที่ และพิกัดให้ถูกต้อง</div>";
+    } else {
+        try {
+            $stmt = $pdo->prepare("UPDATE accommodations
+                SET name = :name, district_id = :district_id, address = :address,
+                    price = :price, phone = :phone, description = :description,
+                    amenities = :amenities, map_url = :map_url, lat = :lat,
+                    lng = :lng, status = :status
+                WHERE id = :id");
+            $stmt->execute([
+                'name' => $name,
+                'district_id' => $district_id,
+                'address' => $address,
+                'price' => $price,
+                'phone' => $phone,
+                'description' => $description,
+                'amenities' => $amenities,
+                'map_url' => $map_url !== '' ? $map_url : null,
+                'lat' => $lat,
+                'lng' => $lng,
+                'status' => $status,
+                'id' => $accommodation_id,
+            ]);
+            $_SESSION['admin_edit_notice'] = "<div class='alert alert-success'>บันทึกการแก้ไขข้อมูลที่พักแล้ว</div>";
+            header('Location: admin.php');
+            exit;
+        } catch (PDOException $e) {
+            $edit_notice = "<div class='alert alert-error'>บันทึกข้อมูลไม่สำเร็จ กรุณาตรวจสอบเขตที่เลือกแล้วลองอีกครั้ง</div>";
+        }
+    }
+}
+
 // อนุมัติ/ปฏิเสธที่พักที่เจ้าของส่งเข้ามา
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'approve_accommodation') {
     $stmt = $pdo->prepare("UPDATE accommodations SET status = 'approved' WHERE id = :id");
@@ -94,7 +160,83 @@ $approved = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as 
                           FROM accommodations a
                           LEFT JOIN districts d ON a.district_id = d.id
                           LEFT JOIN users u ON a.owner_id = u.id
-                          WHERE a.status = 'approved' ORDER BY a.id DESC")->fetchAll();?>
+                          WHERE a.status = 'approved' ORDER BY a.id DESC")->fetchAll();
+
+function adminEscape($value): string
+{
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+}
+
+function renderAccommodationEditForm(array $item, array $districts): void
+{
+    ?>
+    <details style="margin: 14px 0;">
+        <summary style="cursor: pointer; color: var(--color-primary); font-weight: 600;">แก้ไขข้อมูลที่พัก</summary>
+        <form method="POST" action="admin.php" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding-top: 16px;">
+            <input type="hidden" name="action" value="edit_accommodation">
+            <input type="hidden" name="accommodation_id" value="<?php echo (int) $item['id']; ?>">
+
+            <div class="filter-group">
+                <label>ชื่อที่พัก *</label>
+                <input type="text" name="name" required class="form-control" value="<?php echo adminEscape($item['name']); ?>">
+            </div>
+            <div class="filter-group">
+                <label>เขต *</label>
+                <select name="district_id" required>
+                    <?php foreach ($districts as $district): ?>
+                        <option value="<?php echo (int) $district['id']; ?>" <?php echo (int) $district['id'] === (int) $item['district_id'] ? 'selected' : ''; ?>>
+                            เขต<?php echo adminEscape($district['name_th']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>ราคาต่อคืน (บาท) *</label>
+                <input type="number" name="price" min="0" step="1" required class="form-control" value="<?php echo (int) $item['price']; ?>">
+            </div>
+            <div class="filter-group">
+                <label>เบอร์โทร *</label>
+                <input type="tel" name="phone" required class="form-control" value="<?php echo adminEscape($item['phone']); ?>">
+            </div>
+            <div class="filter-group" style="grid-column: 1 / -1;">
+                <label>ที่อยู่</label>
+                <textarea name="address" rows="3" class="form-control" style="font-family: inherit;"><?php echo adminEscape($item['address']); ?></textarea>
+            </div>
+            <div class="filter-group" style="grid-column: 1 / -1;">
+                <label>รายละเอียดที่พัก</label>
+                <textarea name="description" rows="4" class="form-control" style="font-family: inherit;"><?php echo adminEscape($item['description']); ?></textarea>
+            </div>
+            <div class="filter-group" style="grid-column: 1 / -1;">
+                <label>สิ่งอำนวยความสะดวก</label>
+                <textarea name="amenities" rows="3" class="form-control" style="font-family: inherit;"><?php echo adminEscape($item['amenities']); ?></textarea>
+            </div>
+            <div class="filter-group" style="grid-column: 1 / -1;">
+                <label>ลิงก์ Google Maps</label>
+                <input type="url" name="map_url" class="form-control" value="<?php echo adminEscape($item['map_url']); ?>">
+            </div>
+            <div class="filter-group">
+                <label>ละติจูด *</label>
+                <input type="number" name="lat" min="-90" max="90" step="any" required class="form-control" value="<?php echo adminEscape($item['lat']); ?>">
+            </div>
+            <div class="filter-group">
+                <label>ลองจิจูด *</label>
+                <input type="number" name="lng" min="-180" max="180" step="any" required class="form-control" value="<?php echo adminEscape($item['lng']); ?>">
+            </div>
+            <div class="filter-group">
+                <label>สถานะ *</label>
+                <select name="status" required>
+                    <option value="pending" <?php echo $item['status'] === 'pending' ? 'selected' : ''; ?>>รออนุมัติ</option>
+                    <option value="approved" <?php echo $item['status'] === 'approved' ? 'selected' : ''; ?>>อนุมัติแล้ว</option>
+                </select>
+            </div>
+            <div style="grid-column: 1 / -1;">
+                <button type="submit" class="btn btn-primary">บันทึกข้อมูลที่พัก</button>
+            </div>
+        </form>
+    </details>
+    <?php
+}
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -129,6 +271,8 @@ $approved = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as 
         <p style="color: #64748B; margin-top: 4px;">เพิ่มข้อมูลพื้นที่เขต และอัปเดตรายชื่อที่พักใหม่เข้าสู่ระบบฐานข้อมูล</p>
         <div class="divider"></div>
     </div>
+
+    <?php echo $edit_notice; ?>
 
     <div class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 32px;">
         
@@ -267,6 +411,8 @@ $approved = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as 
                     </div>
                 </div>
 
+                <?php renderAccommodationEditForm($item, $districts); ?>
+
                 <div class="image-manager" id="imgmgr-<?php echo $item['id']; ?>">
                     <h4>รูปภาพ (<?php echo count($imgs); ?> รูป)</h4>
                     <div class="image-grid" id="thumbs-<?php echo $item['id']; ?>">
@@ -290,8 +436,8 @@ $approved = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as 
     <?php endif; ?>
 
     <div class="section-header">
-        <h2>จัดการรูปภาพที่พักที่อนุมัติแล้ว (<?php echo count($approved); ?>)</h2>
-        <p style="color: #64748B; margin-top: 4px;">เพิ่มหรือลบรูปของที่พักได้ภายหลัง</p>
+        <h2>จัดการที่พักที่อนุมัติแล้ว (<?php echo count($approved); ?>)</h2>
+        <p style="color: #64748B; margin-top: 4px;">แก้ไขข้อมูล เพิ่มหรือลบรูปของที่พักได้ภายหลัง</p>
         <div class="divider"></div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px;">
@@ -303,6 +449,7 @@ $approved = $pdo->query("SELECT a.*, d.name_th as district_name, u.full_name as 
             <div class="card" style="padding: 20px 24px;">
                 <h4 style="font-weight: 700; color: var(--color-neutral);"><?php echo htmlspecialchars($item['name']); ?></h4>
                 <p style="color: #64748B; font-size: 0.9rem; margin: 4px 0 14px;">เขต<?php echo htmlspecialchars($item['district_name'] ?? 'ไม่ระบุ'); ?></p>
+                <?php renderAccommodationEditForm($item, $districts); ?>
                 <div class="image-manager" id="imgmgr-<?php echo $item['id']; ?>">
                     <h4>รูปภาพ (<?php echo count($imgs); ?> รูป)</h4>
                     <div class="image-grid" id="thumbs-<?php echo $item['id']; ?>">
