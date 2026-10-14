@@ -254,7 +254,7 @@ function renderAccommodationEditForm(array $item, array $districts): void
     <div class="nav-container">
         <a href="index.html" class="nav-brand">
             <svg class="icon-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-            <span>BKK STAYPOINT</span>
+            <span>รวมที่พักทั่วกรุงเทพ</span>
         </a>
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: #64748B; font-size: 0.9rem;">สวัสดี, <?php echo htmlspecialchars($_SESSION['admin_username']); ?></span>
